@@ -11,7 +11,7 @@ from pyexcel_xls import save_data
 
 
 class wrapper:
-    metadata_debug = False
+    metadata_debug = True
     cache_debug = False
     auto_filter = True
     export_dir = '.'
@@ -51,10 +51,10 @@ class wrapper:
         # token in path(if exists)
         # path
         o_path = result.path
-        o_token_raw = re.findall(r'token\.([\S]+)\%', o_path)
+        o_token_raw = re.findall(r'token\.([\S]+?)\.', o_path)
         if len(o_token_raw):
             # tokens = parse.parse_qs(base64_url_decode(token_raw[0]))  # 二进制形式
-            o_tokens = parse.parse_qs(self.__base64_url_decode(o_token_raw[0]).decode('utf-8', 'ignore'))  # 字符串形式
+            o_tokens = parse.parse_qs(self.__base64_url_decode(o_token_raw[0]).decode('utf-8', 'ignore'), separator=";")  # 字符串形式
         else:
             o_tokens = None
 
@@ -160,15 +160,6 @@ class wrapper:
             print('Decrypting data...', end='')
         order_index = 0
         plain = b''
-        for ts_one in ordered_ts_index:
-            if self.cache_debug:
-                print('[TS{:03d}]\t{}-{} writing'.format(ts_one[0], ts_one[1], ts_one[2]))
-            raw = data_all[ts_one[0]][1]
-            chip = self.__aes_decrypt(raw=raw, key=aes_keys[0])
-            plain += chip
-            order_index += 1
-        if self.cache_debug:
-            print('Combining {} clips...'.format(len(ordered_ts_index)), end='')
 
         # 保存文件
         save_filename = os.path.split(filename)[1].lower().replace('.m3u8.sqlite', '.ts')
@@ -181,9 +172,20 @@ class wrapper:
         else:
             os.makedirs(save_dir)
 
-        with open(save_path, 'wb') as fp1:
-            fp1.write(plain)
-        fp1.close()
+        if os.path.exists(save_path):
+            os.remove(save_path)
+
+        with open(save_path, 'ab') as fp1:
+            for ts_one in ordered_ts_index:
+                if self.cache_debug:
+                    print('[TS{:03d}]\t{}-{} writing'.format(ts_one[0], ts_one[1], ts_one[2]))
+                raw = data_all[ts_one[0]][1]
+                chip = self.__aes_decrypt(raw=raw, key=aes_keys[0])
+                fp1.write(chip)
+                # plain += chip
+                order_index += 1
+            if self.cache_debug:
+                print('Combining {} clips...'.format(len(ordered_ts_index)), end='')
 
         # 用时计算
         end_time = time.time()
